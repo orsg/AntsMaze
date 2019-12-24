@@ -56,6 +56,8 @@ class StateCalculator(object):
         self._states_names = None
         self.states = None
         self.max_volume_dist = max_volume_dist
+        self.cc = None
+        self.state_dict = None
 
     def calculate_states(self):
         # Compute all boundary points in the phase Space
@@ -109,32 +111,33 @@ class StateCalculator(object):
 
     def _name_boundary_points(self):
         # Name all corners of each load and board
+        print("StatesCalculator: naming boundary states")
         with tqdm(total=np.count_nonzero(self.ps.space_boundary)) as progress_bar:
             for ix, iy, itheta in self.ps.iterate_space_index():
                 if self.ps.space_boundary[ix, iy, itheta]:
                     self.name_point_by_touch_type(ix, iy, itheta)
                     progress_bar.update(1)
 
-    def save(self, path='ps2_state.pkl'):
+    def save(self, path='ps_states.pkl'):
         pickle.dump(self._states_names, open(path, 'wb'))
 
-    def load(self, path='ps2_state.pkl'):
+    def load(self, path='ps_states.pkl'):
         self._states_names = pickle.load(open(path, 'rb'))
 
     def _group_to_states_by_connectivity(self):
         # Prepare to cc3d format
-        self.state_names = np.unique(self._states_names[self._states_names.nonzero()])
-        state_to_label_dict = {v: i for i, v in enumerate(self.state_names)}
+        state_names = np.unique(self._states_names[self._states_names.nonzero()])
+        state_to_label_dict = {v: i for i, v in enumerate(state_names)}
         state_to_label_dict[0] = 10000
         boundary_state_labeled = np.zeros(self._states_names.shape, dtype=np.int32)
         for ix, iy, itheta in self.ps.iterate_space_index():
             boundary_state_labeled[ix, iy, itheta] = state_to_label_dict[self._states_names[ix, iy, itheta]]
         self.cc = cc3d.connected_components(boundary_state_labeled, connectivity=26)
-        label_to_state_dict = {i: v for i, v in enumerate(self.state_names)}
+        label_to_state_dict = {i: v for i, v in enumerate(state_names)}
         label_to_state_dict[10000] = "Illegal"
 
         # Create the new states
-        state_dict = {}
+        self.state_dict = {}
         for id in np.unique(self.cc):
             coords = np.where(self.cc == id)
             point = (coords[0][0], coords[1][0], coords[2][0])
@@ -145,15 +148,16 @@ class StateCalculator(object):
                     break
             state_label = boundary_state_labeled[point]
             state_name = label_to_state_dict[state_label]
-            state_dict[id] = State(state_name, point)
+            self.state_dict[id] = State(state_name, point)
 
         # update the state array
         for ix, iy, itheta in self.ps.iterate_space_index():
             if self._states_names[ix, iy, itheta]:
-                self.states[ix, iy, itheta] = state_dict[self.cc[ix, iy, itheta]]
+                self.states[ix, iy, itheta] = self.state_dict[self.cc[ix, iy, itheta]]
 
     def _append_volume_to_states(self):
         neutral_state_name = "neutral"
+        print("StatesCalculator: calculating volume states")
         for itheta in tqdm(range(self._states_names.shape[2])):
             # init with the maximum distance possible
             dist_map = np.ones(self._states_names.shape[0:2]) * max(self._states_names.shape[0:1]) * 2
@@ -348,12 +352,5 @@ class StateCalculator(object):
 
 ## TODO: rare cases should have smaller "volume potential"
 ##TODO: filter any volume state that is too far to be in a special state. Pay attention to connectivity
-import PhaseSpace
 
-sc = StateCalculator(PhaseSpace.p)
-sc.load()
-sc.calculate_states()
-# sc.save()
-sc.plot_state_map()
-sc.plot_interactive_states()
-bla
+

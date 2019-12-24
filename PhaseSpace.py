@@ -1,11 +1,10 @@
 import numpy as np
 from Mazes import *
-from mpl_toolkits.mplot3d import Axes3D
-import pandas as pd
+# from mpl_toolkits.mplot3d import Axes3D
 import itertools
 import pickle
 from scipy.io import loadmat
-# from mayavi import mlab
+from mayavi import mlab
 from tqdm import tqdm
 
 
@@ -37,6 +36,10 @@ class PhaseSpace(object):
         self.space = None
         self.space_boundary = None
         # self._initialize_maze_edges()
+
+    @property
+    def theta_cell_normalization(self):
+        return (np.pi * self.maze.load.centroid_max_dist * self.theta_resolution) / (180 * self.pos_resolution)
 
     def _initialize_maze_edges(self):
         """
@@ -88,15 +91,15 @@ class PhaseSpace(object):
         mlab.axes(xlabel="x", ylabel="y", zlabel="alpha")
         mlab.orientation_axes(xlabel="x", ylabel="y", zlabel="alpha")
 
-    def iterate_neighbours(self, x, y, theta):
+    def iterate_neighbours(self, ix, iy, itheta):
         for dx, dy, dtheta in itertools.product([-1, 0, 1], repeat=3):
-            _x, _y, _theta = x + dx, y + dx, theta + dtheta
-            if ((_x >= self.space.shape[0]) or (_x < 0) or \
-                    (_y >= self.space.shape[1]) or (_y < 0) or \
-                    (_theta >= self.space.shape[2]) or (_theta < 0) or \
+            _ix, _iy, _itheta = ix + dx, iy + dx, itheta + dtheta
+            if ((_ix >= self.space.shape[0]) or (_ix < 0) or \
+                    (_iy >= self.space.shape[1]) or (_iy < 0) or \
+                    (_itheta >= self.space.shape[2]) or (_itheta < 0) or \
                     ((dx, dy, dtheta) == (0, 0, 0))):
                 continue
-            yield (_x, _y, _theta)
+            yield (_ix, _iy, _itheta)
 
     def load_trajectory(self, path, color=(0, 0, 0), theta_bias=90):
         matfile = loadmat(path)
@@ -144,19 +147,14 @@ class PhaseSpace(object):
             if self._is_boundary_cell(ix, iy, itheta):
                 self.space_boundary[ix, iy, itheta] = 1
 
-
-p = PhaseSpace(MAZE_T_SL, 0.2, 6, (12, 21), (0, 15), name='ps')
-# phase_space = PhaseSpace(MAZE_SPECIAL, 0.25, 6, (12,37), (0,20), name='Special')
-# phase_space = PhaseSpace(MAZE_LONG, 0.25, 3, (5,22), (0,20), name='Long')
-
 # p.maze.visualize()
 # p.calculate_space()
 # p.save_space(p.name+".pkl")
-p.load_space(p.name + ".pkl")
+# p.load_space(p.name + ".pkl")
 # p.calculate_boundary()
 # p.save_space(p.name + ".pkl")
 # p.visualize_space()
-
+# bla
 # for i in xrange(2,3,1):
 #     phase_space.load_trajectory("C:\Users\Dell\Documents\Or\SLT_4160006_%d.mat" %(i,),
 #                                theta_bias=90, color=(0,0,1.0/i))

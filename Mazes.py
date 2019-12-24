@@ -1,6 +1,6 @@
 from shapely import affinity, geometry
 import matplotlib.pyplot as plt
-
+import numpy as np
 
 class Graph(object):
 
@@ -31,6 +31,10 @@ class Load(Graph):
         super(Load, self).__init__(coords)
         self.centroid = self.shape.centroid.coords[:][0]
         self.theta = 0
+        self.centroid_max_dist = self.calculate_max_distance_from_cetroid()
+
+    def calculate_max_distance_from_cetroid(self):
+        return geometry.Point(self.centroid).hausdorff_distance(self.shape)
 
     def translate(self, x, y):
         """
@@ -134,7 +138,3 @@ MAZE_LONG = Maze(BOARD_LONG, LOAD_LONG)
 BOARD_TEST = [(2,5),(0,5),(0,0),(5,0),(5,5),(3,5)]
 LOAD_TEST = [(1,4),(1.5,4),(1.5,1),(1,1),(1,4)]
 MAZE_TEST = Maze(BOARD_TEST, LOAD_TEST)
-
-# MAZE_SPECIAL.visualize()
-# MAZE_T_L.visualize()
-# MAZE_T_SL.visualize()
