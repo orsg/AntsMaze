@@ -9,10 +9,10 @@ from tqdm import tqdm
 
 
 class PhaseSpace(object):
-    MAX_theta = 360
+    MAX_THETA = 360
 
     def __init__(self, maze, pos_resolution, theta_resolution,
-                 x_range, y_range, theta_range=(0, MAX_theta),
+                 x_range, y_range, theta_range=(0, MAX_THETA),
                  name=""):
         """
         :param board_coords:
@@ -56,9 +56,7 @@ class PhaseSpace(object):
         self.maze.load.rotate(theta)
         self.maze.load.translate(x, y)
         if self.maze.load.intersects(self.maze.board):
-            self.space[int(round((x - self.shape['x'][0]) / self.pos_resolution)),
-                       int(round((y - self.shape['y'][0]) / self.pos_resolution)),
-                       int(round((theta - self.shape['theta'][0]) / self.theta_resolution))] = 0
+            self.space[self.coords_to_indexes(x, y, theta)] = 0
 
     def calculate_space(self):
         # initialize 3d map for the phase_space
@@ -88,8 +86,8 @@ class PhaseSpace(object):
         mlab.figure()
         mlab.contour3d(x, y, z, self.space, opacity=0.7)
         # mlab.points3d(x, y, z, self.space_boundary)
-        mlab.axes(xlabel="x", ylabel="y", zlabel="alpha")
-        mlab.orientation_axes(xlabel="x", ylabel="y", zlabel="alpha")
+        mlab.axes(xlabel="x", ylabel="y", zlabel="theta")
+        mlab.orientation_axes(xlabel="x", ylabel="y", zlabel="theta")
 
     def iterate_neighbours(self, ix, iy, itheta):
         for dx, dy, dtheta in itertools.product([-1, 0, 1], repeat=3):
@@ -101,15 +99,12 @@ class PhaseSpace(object):
                 continue
             yield (_ix, _iy, _itheta)
 
-    def load_trajectory(self, path, color=(0, 0, 0), theta_bias=90):
-        matfile = loadmat(path)
-        load_center = matfile['load_center']
-        load_orientation = matfile['shape_orientation']
-        traj = np.concatenate([load_center, load_orientation], axis=1).T
+    def plot_trajectory(self, traj, color=(0, 0, 0)):
         mlab.plot3d(traj[0],
                     traj[1],
-                    ((traj[2] + theta_bias) % self.MAX_theta) * self.theta_factor,
+                    traj[2] * self.theta_factor,
                     color=color, tube_radius=0.045, colormap='Spectral')
+        mlab.points3d([traj[0, 0]], [traj[1, 0]], [traj[2, 0] * self.theta_factor])
 
     def save_space(self, path='ps.pkl'):
         pickle.dump((self.space, self.space_boundary), open(path, 'wb'))
@@ -126,10 +121,15 @@ class PhaseSpace(object):
                 return True
         return False
 
-    def convert_indexes_to_coords(self, ix, iy, itheta):
+    def indexes_to_coords(self, ix, iy, itheta):
         return (self.shape['x'][0] + ix * self.pos_resolution,
                 self.shape['y'][0] + iy * self.pos_resolution,
                 self.shape['theta'][0] + itheta * self.theta_resolution)
+
+    def coords_to_indexes(self, x, y, theta):
+        return (int(round((x - self.shape['x'][0]) / self.pos_resolution)),
+                int(round((y - self.shape['y'][0]) / self.pos_resolution)),
+                int(round((theta - self.shape['theta'][0]) / self.theta_resolution)))
 
     def iterate_space_index(self):
         for ix in range(self.space.shape[0]):
@@ -146,17 +146,5 @@ class PhaseSpace(object):
         for ix, iy, itheta in self.iterate_space_index():
             if self._is_boundary_cell(ix, iy, itheta):
                 self.space_boundary[ix, iy, itheta] = 1
-
-# p.maze.visualize()
-# p.calculate_space()
-# p.save_space(p.name+".pkl")
-# p.load_space(p.name + ".pkl")
-# p.calculate_boundary()
-# p.save_space(p.name + ".pkl")
-# p.visualize_space()
-# bla
-# for i in xrange(2,3,1):
-#     phase_space.load_trajectory("C:\Users\Dell\Documents\Or\SLT_4160006_%d.mat" %(i,),
-#                                theta_bias=90, color=(0,0,1.0/i))
 
 # TODO - mark traj begin point

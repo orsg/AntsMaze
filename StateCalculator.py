@@ -29,9 +29,10 @@ def _serialize_corners(corners):
 class State(object):
     states_list = []
 
-    def __init__(self, name, rep_point):
+    def __init__(self, name, rep_point, phase_space):
         self.name = name
         self.index = -1
+        self.ps = phase_space
         for s in self.__class__.states_list:
             if s['states'][0].name == name:
                 s['counter'] += 1
@@ -44,6 +45,25 @@ class State(object):
                                                'states': [self]})
         self.rep_point = rep_point
 
+    def visualize(self, ax=None, point=None):
+        if ax is None:
+            ax = plt.subplot()
+        if point is None:
+            point = self.ps.indexes_to_coords(*(self.rep_point))
+        self.ps.maze.load.translate(point[0], point[1])
+        self.ps.maze.load.rotate(point[2])
+        self.ps.maze.visualize(ax=ax)
+        if type(self.name) is str and self.name.startswith('b'):
+            corners = _deserialize_corners(self.name)
+            for c in corners['load']:
+                coords = self.ps.maze.load.shape.coords[c]
+                ax.plot(coords[0], coords[1], 'go', markersize=8)
+            for c in corners['board']:
+                coords = self.ps.maze.board.shape.coords[c]
+                ax.plot(coords[0], coords[1], 'ko', markersize=8)
+        ax.set_xlim((self.ps.shape['x'][0] - 5, self.ps.shape['x'][1] + 5))
+        ax.set_ylim((self.ps.shape['y'][0] - 5, self.ps.shape['y'][1] + 5))
+        plt.draw()
 
 class StateCalculator(object):
     # Factor to multiply resolution in order to calculate the max distance
@@ -73,7 +93,7 @@ class StateCalculator(object):
     def name_point_by_touch_type(self, ix, iy, itheta):
         load = self.ps.maze.load
         shape_dict = {'load': load, 'board': self.ps.maze.board}
-        x, y, theta = self.ps.convert_indexes_to_coords(ix, iy, itheta)
+        x, y, theta = self.ps.indexes_to_coords(ix, iy, itheta)
         load.translate(x, y)
         load.rotate(theta)
         corners = {'board': set(), 'load': set()}
@@ -148,7 +168,7 @@ class StateCalculator(object):
                     break
             state_label = boundary_state_labeled[point]
             state_name = label_to_state_dict[state_label]
-            self.state_dict[id] = State(state_name, point)
+            self.state_dict[id] = State(state_name, point, self.ps)
 
         # update the state array
         for ix, iy, itheta in self.ps.iterate_space_index():
@@ -186,29 +206,12 @@ class StateCalculator(object):
                                                                        self.ps.space[:, :, itheta] == 1),
                                                         state_map, self._states_names[:, :, itheta])
 
-    def visualize_state(self, state, ax=None):
-        if ax is None:
-            ax = plt.subplot()
-        point = self.ps.convert_indexes_to_coords(*(state.rep_point))
-        self.ps.maze.load.translate(point[0], point[1])
-        self.ps.maze.load.rotate(point[2])
-        self.ps.maze.visualize(ax=ax)
-        if type(state.name) is str and state.name.startswith('b'):
-            corners = _deserialize_corners(state.name)
-            for c in corners['load']:
-                coords = self.ps.maze.load.shape.coords[c]
-                ax.plot(coords[0], coords[1], 'go', markersize=8)
-            for c in corners['board']:
-                coords = self.ps.maze.board.shape.coords[c]
-                ax.plot(coords[0], coords[1], 'ko', markersize=8)
-        ax.set_xlim((self.ps.shape['x'][0] - 5, self.ps.shape['x'][1] + 5))
-        ax.set_ylim((self.ps.shape['y'][0] - 5, self.ps.shape['y'][1] + 5))
-        plt.show()
 
     def visualize_point(self, ipoint, ax=None):
         if ax is None:
             ax = plt.subplot()
-        point = self.ps.convert_indexes_to_coords(*ipoint)
+
+        point = self.ps.indexes_to_coords(*ipoint)
         self.ps.maze.load.translate(point[0], point[1])
         self.ps.maze.load.rotate(point[2])
         self.ps.maze.visualize(ax=ax)
@@ -233,7 +236,8 @@ class StateCalculator(object):
         ax.set_ylim(self.ps.shape['y'])
         ax.set_xlim((self.ps.shape['x'][0] - 5, self.ps.shape['x'][1] + 5))
         ax.set_ylim((self.ps.shape['y'][0] - 5, self.ps.shape['y'][1] + 5))
-        plt.show()
+        plt.draw()
+        plt.pause(0.0001)
 
     def plot_interactive_states(self, state_list=None):
         self.cur_s = 0
@@ -250,11 +254,10 @@ class StateCalculator(object):
                                                                                                state_list[
                                                                                                    self.cur_s][
                                                                                                    'counter'],
-                                                                                               len(
-                                                                                                   state_list)))
-            self.visualize_state(self.states_to_plot[self.cur_s][self.cur_pos], self.states_ax)
+                                                                                               len(state_list)))
+            self.states_to_plot[self.cur_s][self.cur_pos].visualize(self.states_ax)
             self.states_fig.canvas.draw()
-            plt.draw()
+            # plt.draw()
 
         def key_event(e):
             if e.key == "right":
@@ -297,13 +300,13 @@ class StateCalculator(object):
 
         def plot_state():
             self.theta_ax.cla()
-            self.theta_fig.suptitle("X:{}, Y:{}, Theta: {}".format(*(self.ps.convert_indexes_to_coords(self.load_ix,
-                                                                                                       self.load_iy,
-                                                                                                       self.load_itheta))))
+            self.theta_fig.suptitle("X:{}, Y:{}, Theta: {}".format(*(self.ps.indexes_to_coords(self.load_ix,
+                                                                                               self.load_iy,
+                                                                                               self.load_itheta))))
 
             self.visualize_point((self.load_ix, self.load_iy, self.load_itheta), self.theta_ax)
             self.theta_fig.canvas.draw()
-            plt.draw()
+            # plt.draw()
 
         def key_event(e):
             if e.key == "right":
@@ -347,10 +350,6 @@ class StateCalculator(object):
         plot_state()
 
 
-# Visualization:
-## Visualise connectivity graph
-
 ## TODO: rare cases should have smaller "volume potential"
-##TODO: filter any volume state that is too far to be in a special state. Pay attention to connectivity
 
 

@@ -4,13 +4,12 @@ import networkx as nx
 
 class StateMachine(object):
 
-    def __init__(self, state_id_matrix, state_obj_matrix, state_dict, phase_space):
+    def __init__(self, state_id_matrix, state_dict, phase_space):
         """
         :param state_matrix: 3d matrix with state id (int) in each cell.
         :param state_obj_matrix: 3d matrix with state id (int) in each cell.
         """
         self.sim = state_id_matrix
-        self.som = state_obj_matrix
         self.ps = phase_space
         self.state_dict = state_dict
         self.AREA_GAUGE_FACTOR = {'xy': 1,
@@ -83,7 +82,6 @@ class StateMachine(object):
         pts.mlab_source.dataset.lines = np.array(list(self.graph.edges()))
         tube = mlab.pipeline.tube(pts, tube_radius=0.01)
         mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
-        bla
 
 
     #process traj - smooth it.
