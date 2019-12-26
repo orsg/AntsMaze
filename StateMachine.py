@@ -20,7 +20,9 @@ class StateMachine(object):
 
     def _build_graph(self):
         self.graph = nx.Graph()
+        volumes = np.unique(self.sim, return_counts=True)
         [self.graph.add_node(i) for i in self.connection_dict.keys()]
+        nx.set_node_attributes(self.graph, {i: {"volume": count} for i, count in zip(list(volumes[0]), list(volumes[1]))})
         for i, cons in self.connection_dict.items():
             for j, weight in cons.items():
                 self.graph.add_weighted_edges_from([(i, j, weight)])

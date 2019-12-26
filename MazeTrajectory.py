@@ -2,17 +2,16 @@ from StateCalculator import *
 from scipy.io import loadmat
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
-
+from scipy import signal
 class MazeTrajectory(object):
 
     OUT_OF_SCOPE_POINT = (0,0,0)
 
-    def __init__(self, state_id_matrix, phase_space, state_machine, traj_path, coords_bias=(0,0,90)):
+    def __init__(self, state_id_matrix, phase_space, state_machine, traj_path, coords_bias=(0,0,90), coords_factor=(1,1,1)):
         self.sim = state_id_matrix
         self.ps = phase_space
         self.sm = state_machine
-        self.coords_bias = coords_bias
-        self._load_traj(traj_path)
+        self._load_traj(traj_path, coords_bias, coords_factor)
         self.traj_indices = np.apply_along_axis(self._calculate_state_ids, 0, self.traj)
         # fix traj indices that are out of boundaries
         self.traj_indices = np.apply_along_axis(self._fix_point, 0, self.traj_indices)
@@ -35,13 +34,18 @@ class MazeTrajectory(object):
         boundary_points = np.array(np.nonzero(self.ps.space[:, :, p[2]])).T
         return np.append(boundary_points[np.argmin(np.linalg.norm(boundary_points - p[:2], axis=1))], p[2])
 
-    def _load_traj(self, traj_path):
+    def _load_traj(self, traj_path, bias, factor):
         matfile = loadmat(traj_path)
         load_center = matfile['load_center']
         load_orientation = matfile['shape_orientation']
         self.traj = np.concatenate([load_center, load_orientation], axis=1).T
-        self.traj = (self.traj.T + self.coords_bias).T
+        self.traj = (self.traj.T * factor + bias).T
         self.traj[2] = self.traj[2] % 360
+        # Smooth the orientation
+        for i in range(1, self.traj[2].shape[0]):
+            if 250 > abs((self.traj[2,i] - self.traj[2,i-1]) % 360) > 90:
+                self.traj[2, i] = (self.traj[2, i] - 180) % 360
+        self.traj[2] = signal.medfilt(self.traj[2], kernel_size=3)
 
 
     def update_frame(self, i):

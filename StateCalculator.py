@@ -70,25 +70,26 @@ class StateCalculator(object):
     # that still counts as touching. Here taking diagonal factor
     ERROR_DISTANCE_FACTOR = 1  # 1.2 * pow(2, 0.5)
 
-    def __init__(self, phase_space, max_volume_dist=2):
+    def __init__(self, phase_space, max_volume_dist=8):
         self.ps = phase_space
         self.touch_err_distance = self.ps.pos_resolution * self.ERROR_DISTANCE_FACTOR
         self._states_names = None
         self.states = None
         self.max_volume_dist = max_volume_dist
-        self.cc = None
+        self.state_ids = None
         self.state_dict = None
 
-    def calculate_states(self):
+    def calculate_states(self, recalculate_volume=False):
         # Compute all boundary points in the phase Space
         if self.ps.space_boundary is None:
             self.ps.calculate_boundary()
-        self.states = np.zeros(self.ps.space_boundary.shape, type(State))
         if self._states_names is None:
             self._states_names = np.zeros(self.ps.space_boundary.shape, object)
             self._name_boundary_points()
-        self._append_volume_to_states()
-        self._group_to_states_by_connectivity()
+        if self.states is None or recalculate_volume:
+            self.states = np.zeros(self.ps.space_boundary.shape, type(State))
+            self._append_volume_to_states()
+            self._group_to_states_by_connectivity()
 
     def name_point_by_touch_type(self, ix, iy, itheta):
         load = self.ps.maze.load
@@ -139,10 +140,10 @@ class StateCalculator(object):
                     progress_bar.update(1)
 
     def save(self, path='ps_states.pkl'):
-        pickle.dump(self._states_names, open(path, 'wb'))
+        pickle.dump((self._states_names, self.states, self.state_ids, self.state_dict), open(path, 'wb'))
 
     def load(self, path='ps_states.pkl'):
-        self._states_names = pickle.load(open(path, 'rb'))
+        (self._states_names, self.states, self.state_ids, self.state_dict) = pickle.load(open(path, 'rb'))
 
     def _group_to_states_by_connectivity(self):
         # Prepare to cc3d format
@@ -152,14 +153,14 @@ class StateCalculator(object):
         boundary_state_labeled = np.zeros(self._states_names.shape, dtype=np.int32)
         for ix, iy, itheta in self.ps.iterate_space_index():
             boundary_state_labeled[ix, iy, itheta] = state_to_label_dict[self._states_names[ix, iy, itheta]]
-        self.cc = cc3d.connected_components(boundary_state_labeled, connectivity=26)
+        self.state_ids = cc3d.connected_components(boundary_state_labeled, connectivity=26)
         label_to_state_dict = {i: v for i, v in enumerate(state_names)}
         label_to_state_dict[10000] = "Illegal"
 
         # Create the new states
         self.state_dict = {}
-        for id in np.unique(self.cc):
-            coords = np.where(self.cc == id)
+        for id in np.unique(self.state_ids):
+            coords = np.where(self.state_ids == id)
             point = (coords[0][0], coords[1][0], coords[2][0])
             for temp_point in zip(coords[0], coords[1], coords[2]):
                 # look for points which are on the boundary for state representation
@@ -173,7 +174,7 @@ class StateCalculator(object):
         # update the state array
         for ix, iy, itheta in self.ps.iterate_space_index():
             if self._states_names[ix, iy, itheta]:
-                self.states[ix, iy, itheta] = self.state_dict[self.cc[ix, iy, itheta]]
+                self.states[ix, iy, itheta] = self.state_dict[self.state_ids[ix, iy, itheta]]
 
     def _append_volume_to_states(self):
         neutral_state_name = "neutral"
@@ -226,7 +227,7 @@ class StateCalculator(object):
                 ax.plot(coords[0], coords[1], 'ko', markersize=8)
         palette = plt.get_cmap("gist_ncar")
         palette.set_bad(alpha=0.0)
-        img = np.swapaxes(self.cc[:, :, ipoint[2]], 0, 1)
+        img = np.swapaxes(self.state_ids[:, :, ipoint[2]], 0, 1)
         ax.imshow(np.ma.masked_where(img == 1, img), extent=(self.ps.shape['x'][0],
                                                              self.ps.shape['x'][1],
                                                              self.ps.shape['y'][0],

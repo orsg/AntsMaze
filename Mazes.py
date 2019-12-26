@@ -100,10 +100,18 @@ def change_shape_ratio(shape, r):
     return [(x*r,y*r) for (x,y) in shape]
 
 #According to Large dimensions
-SLIT_L_SIZE = 2.44
+SLIT_S_SIZE = 0.495
+SLIT_M_SIZE = 1.224
+SLIT_L_SIZE = 2.448
 SLIT_SL_SIZE = 3.66
+SLIT_XL_SIZE = 4.896
+
 BOARD_SLIT_L = get_slit_board(SLIT_L_SIZE)
+BOARD_SLIT_XL = get_slit_board(SLIT_XL_SIZE)
 BOARD_SLIT_SL = get_slit_board(SLIT_SL_SIZE)
+BOARD_SLIT_M = get_slit_board(SLIT_M_SIZE)
+BOARD_SLIT_S = get_slit_board(SLIT_S_SIZE)
+
 BOARD_SPECIAL_L = [(29.5, 19.05), (29.5, 11.35), (29.15, 11.35), (29.15, 19.05), (22.75, 19.05), (22.75, 11.35),
                    (22.4,11.35), (22.4,19.05), (0,19.05), (0,0), (22.4,0), (22.4,7.7), (22.75,7.7), (22.75,0),
                    (29.15,0), (29.15,7.7), (29.5,7.7), (29.5,0)]
@@ -117,7 +125,13 @@ LOAD_H_L = [(0, 0), (0.8, 0), (0.8, 1.0), (2.8, 1.0), (2.8, 0), (3.6, 0), (3.6, 
             (2.8,1.8), (0.8,1.8), (0.8,2.8), (0,2.8), (0,0)]
 LOAD_T_L = [(2.8, 2.0), (2.8, 2.8), (0, 2.8), (0, 2.0), (1.0, 2.0), (1.0, 0), (1.8, 0),
             (1.8,2.0), (2.8,2.0)]
+
+LOAD_T_XL = change_shape_ratio(LOAD_T_L, (SLIT_XL_SIZE / SLIT_L_SIZE))
 LOAD_T_SL = change_shape_ratio(LOAD_T_L, (SLIT_SL_SIZE / SLIT_L_SIZE))
+LOAD_T_M = change_shape_ratio(LOAD_T_L, (SLIT_M_SIZE / SLIT_L_SIZE))
+LOAD_T_S = change_shape_ratio(LOAD_T_L, (SLIT_S_SIZE / SLIT_L_SIZE))
+
+
 LOAD_I_L = [(0, 0), (1.0, 0), (1.0, 2.8), (0, 2.8), (0, 0)]
 LOAD_ASYMMETRICAL_H_L = [(0, 0), (0.8, 0), (0.8, 2.22), (2.78, 2.22), (2.78, 1.22), (3.58, 1.22),
                          (3.58,5.24), (2.78,5.24), (2.78,3.02), (0.8,3.02), (0.8, 4.02), (0, 4.02), (0,0)]
@@ -126,8 +140,11 @@ LOAD_SPECIAL_L = [(0, 0), (0.8, 0), (0.8, 2.01), (8.83, 2.01), (8.83, 1.19), (9.
 LOAD_LONG_L = [(0, 0), (0.44, 0), (0.44, 0.99), (8.03, 0.99), (8.03, 1.43),
                (0.44,1.43), (0.44,2.42), (0,2.42), (0,0)]
 
+MAZE_T_S = Maze(BOARD_SLIT_S, LOAD_T_S, "Slit T - Small")
+MAZE_T_M = Maze(BOARD_SLIT_M, LOAD_T_M, "Slit T - Medium")
 MAZE_T_L = Maze(BOARD_SLIT_L, LOAD_T_L, "Slit T - Large")
 MAZE_T_SL = Maze(BOARD_SLIT_SL, LOAD_T_SL, "Slit T - Sesqui-Large")
+MAZE_T_XL = Maze(BOARD_SLIT_XL, LOAD_T_XL, "Slit T - Extra-Large")
 MAZE_I_L = Maze(BOARD_SLIT_L, LOAD_I_L, "Slit I - Large")
 MAZE_H_L = Maze(BOARD_SLIT_L, LOAD_H_L, "Slit H - Large")
 MAZE_LOAD_ASYMMETRICAL_H_L = Maze(BOARD_SLIT_L, LOAD_ASYMMETRICAL_H_L)

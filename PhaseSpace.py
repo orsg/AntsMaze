@@ -52,7 +52,6 @@ class PhaseSpace(object):
         self.space[:, -1, :] = 0
 
     def _maze_step(self, x, y, theta):
-        print("X={}, Y={}, Alpha={}".format(x, y, theta))
         self.maze.load.rotate(theta)
         self.maze.load.translate(x, y)
         if self.maze.load.intersects(self.maze.board):
@@ -63,21 +62,13 @@ class PhaseSpace(object):
         self.space = np.ones((int(np.ceil(self.x_size / float(self.pos_resolution))),
                               int(np.ceil(self.y_size / float(self.pos_resolution))),
                               int(np.ceil(self.theta_size / float(self.theta_resolution)))))
-        for theta in np.arange(self.shape['theta'][0], self.shape['theta'][1], self.theta_resolution):
+        print("PhaseSpace: Calculating space")
+        for theta in tqdm(np.arange(self.shape['theta'][0], self.shape['theta'][1], self.theta_resolution)):
             for x in np.arange(self.shape['x'][0], self.shape['x'][1], self.pos_resolution):
                 for y in np.arange(self.shape['y'][0], self.shape['y'][1], self.pos_resolution):
                     self._maze_step(x, y, theta)
 
     def visualize_space(self):
-        # free_indexes = np.array(self.phase_space.nonzero()).T
-        # pcd = o3d.geometry.PointCloud()
-        # pcd.points = o3d.utility.Vector3dVector(free_indexes)
-        # o3d.visualization.draw_geometries([pcd])
-        # fig = plt.figure()
-        # ax = fig.add_subplot(111, projection='3d')
-        # df = pd.DataFrame(np.array(self.phase_space.nonzero()).T, columns=['x','y','z'])
-        # ax.scatter(df['x'], df['y'], df['z'], zdir='z', c='red')
-        # fig.show()
         x, y, z = np.mgrid[self.shape['x'][0]:self.shape['x'][1]:self.pos_resolution,
                   self.shape['y'][0]:self.shape['y'][1]:self.pos_resolution,
                   self.shape['theta'][0] * self.theta_factor: self.shape['theta'][1] * self.theta_factor:complex(0,
@@ -106,10 +97,10 @@ class PhaseSpace(object):
                     color=color, tube_radius=0.045, colormap='Spectral')
         mlab.points3d([traj[0, 0]], [traj[1, 0]], [traj[2, 0] * self.theta_factor])
 
-    def save_space(self, path='ps.pkl'):
+    def save_space(self, path='SLT.pkl'):
         pickle.dump((self.space, self.space_boundary), open(path, 'wb'))
 
-    def load_space(self, path='ps.pkl'):
+    def load_space(self, path='SLT.pkl'):
         (self.space, self.space_boundary) = pickle.load(open(path, 'rb'))
         # self.space = cPickle.load(file(path, 'rb'))
 
