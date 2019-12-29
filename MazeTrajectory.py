@@ -7,15 +7,26 @@ class MazeTrajectory(object):
 
     OUT_OF_SCOPE_POINT = (0,0,0)
 
-    def __init__(self, state_id_matrix, phase_space, state_machine, traj_path, coords_bias=(0,0,90), coords_factor=(1,1,1)):
+    def __init__(self, state_id_matrix, phase_space, state_id_dict, traj_path, coords_bias=(0,0,90), coords_factor=(1,1,1), dual_traj_transform=None):
         self.sim = state_id_matrix
         self.ps = phase_space
-        self.sm = state_machine
+        self.state_dict = state_id_dict
         self._load_traj(traj_path, coords_bias, coords_factor)
         self.traj_indices = np.apply_along_axis(self._calculate_state_ids, 0, self.traj)
         # fix traj indices that are out of boundaries
         self.traj_indices = np.apply_along_axis(self._fix_point, 0, self.traj_indices)
         self.traj_state_ids = self.sim[tuple(self.traj_indices.tolist())]
+        self._create_dual_traj(dual_traj_transform)
+
+    def _create_dual_traj(self, dual_traj_transform=None):
+        if dual_traj_transform is None:
+            self.dual_traj, self._dual_traj_indices, self.dual_traj_state_ids = None, None, None
+            return
+        else:
+            self.dual_traj = np.apply_along_axis(dual_traj_transform, 0, self.traj)
+            self.dual_traj_indices = np.apply_along_axis(self._calculate_state_ids, 0, self.dual_traj)
+            self.dual_traj_indices = np.apply_along_axis(self._fix_point, 0, self.dual_traj_indices)
+            self.dual_traj_state_ids = self.sim[tuple(self.dual_traj_indices.tolist())]
 
     def _calculate_state_ids(self, c):
         ipos = self.ps.coords_to_indexes(c[0], c[1], c[2])
@@ -49,19 +60,21 @@ class MazeTrajectory(object):
 
 
     def update_frame(self, i):
+        traj, state_ids = (self.traj, self.traj_state_ids) if not self.anim_dual else (self.dual_traj, self.dual_traj_state_ids)
         i = (i * self.anim_skip_rate + self.anim_initial_frame) % (self.traj.shape[1])
         self.anim_ax.cla()
-        state = self.sm.state_dict[self.traj_state_ids[i]]
-        state.visualize(self.anim_ax, point=self.traj[:, i])
-        self.anim_ax.set_title("state id:{}, frame:{}".format(self.traj_state_ids[i], i))
+        state = self.state_dict[state_ids[i]]
+        state.visualize(self.anim_ax, point=traj[:, i])
+        self.anim_ax.set_title("state id:{}, frame:{}".format(state_ids[i], i))
         self.anim_ax.set_xlim((0, self.ps.shape['x'][1] + 10))
         self.anim_ax.set_ylim((0, self.ps.shape['y'][1] + 10))
 
-    def animate(self, delay=20, initial_frame=0, skip_rate=1):
+    def animate(self, delay=20, initial_frame=0, skip_rate=1, is_dual=False):
         self.anim_initial_frame = initial_frame
         self.anim_skip_rate = skip_rate
         self.anim_fig = plt.figure()
         self.anim_ax = self.anim_fig.add_subplot(111)
+        self.anim_dual = is_dual
 
         ani = animation.FuncAnimation(
             self.anim_fig, self.update_frame, frames=range(self.traj.shape[1]), interval=delay, cache_frame_data=False)

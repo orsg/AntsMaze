@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 from matplotlib.widgets import TextBox, Slider
 from tqdm import tqdm
 from scipy.ndimage.morphology import distance_transform_edt
+from scipy.ndimage import binary_dilation
 import cc3d
 
 
@@ -111,10 +112,11 @@ class StateCalculator(object):
                             p0, p1, p2 = [np.array(s1.shape.coords[j]) for j in [i1-1, i1, i1+1]]
                             A = p0 - p1
                             B = p2 - p1
-                            if (float(np.cross(A, C)) * float(np.cross(A, B)) > 0 and\
+                            if ((float(np.cross(A, C)) * float(np.cross(A, B)) > 0 and\
                                     float(np.cross(B, C)) * float(np.cross(B, A)) > 0) or\
                                 (float(np.cross(A, -C)) * float(np.cross(A, B)) > 0 and\
-                                 float(np.cross(B, -C)) * float(np.cross(B, A)) > 0):
+                                 float(np.cross(B, -C)) * float(np.cross(B, A)) > 0)) and (theta % 90 != 0):
+                                #TODO: the theta%90 will work only for mazes with 90 degress angles only
                                 # the line cannot realy 'touch' the point, ignore it
                                 continue
                         if point.distance(geometry.Point(l1)) == d_line or \
@@ -145,17 +147,43 @@ class StateCalculator(object):
     def load(self, path='ps_states.pkl'):
         (self._states_names, self.states, self.state_ids, self.state_dict) = pickle.load(open(path, 'rb'))
 
+    def _fix_to_permissive_connectivity(self, labeld_state_map, cc_outoput, permissivness=4):
+        new_id = 0
+        new_labeld_state_map = np.zeros(labeld_state_map.shape)
+        # for each id that has degeneracy
+        print("StateCalculator: Aplying permissive connectivity algorithm")
+        for id in tqdm(np.unique(labeld_state_map)):
+            # create 3d binary map
+            deg_map = np.where(labeld_state_map == id, 1, 0)
+            sample_index = tuple(np.argwhere(deg_map == 1)[0])
+            if np.count_nonzero(deg_map) == np.count_nonzero(cc_outoput == cc_outoput[sample_index]):
+                # non degenerate state
+                new_labeld_state_map = np.where(deg_map, new_id, new_labeld_state_map)
+                new_id += 1
+                continue
+            # degenerate case
+            dilated_map = binary_dilation(deg_map, iterations=permissivness)
+            # run cc again
+            new_cc = cc3d.connected_components(dilated_map, connectivity=26)
+            for id in np.unique(new_cc):
+                new_labeld_state_map = np.where((new_cc==id) & deg_map, new_id, new_labeld_state_map)
+                new_id += 1
+        return new_labeld_state_map
+
+
     def _group_to_states_by_connectivity(self):
         # Prepare to cc3d format
         state_names = np.unique(self._states_names[self._states_names.nonzero()])
         state_to_label_dict = {v: i for i, v in enumerate(state_names)}
         state_to_label_dict[0] = 10000
-        boundary_state_labeled = np.zeros(self._states_names.shape, dtype=np.int32)
+        labeld_state_map = np.zeros(self._states_names.shape, dtype=np.int32)
         for ix, iy, itheta in self.ps.iterate_space_index():
-            boundary_state_labeled[ix, iy, itheta] = state_to_label_dict[self._states_names[ix, iy, itheta]]
-        self.state_ids = cc3d.connected_components(boundary_state_labeled, connectivity=26)
+            labeld_state_map[ix, iy, itheta] = state_to_label_dict[self._states_names[ix, iy, itheta]]
+        self.state_ids = cc3d.connected_components(labeld_state_map, connectivity=26)
         label_to_state_dict = {i: v for i, v in enumerate(state_names)}
         label_to_state_dict[10000] = "Illegal"
+
+        self.state_ids = self._fix_to_permissive_connectivity(labeld_state_map, self.state_ids)
 
         # Create the new states
         self.state_dict = {}
@@ -167,7 +195,7 @@ class StateCalculator(object):
                 if self.ps.space_boundary[temp_point]:
                     point = temp_point
                     break
-            state_label = boundary_state_labeled[point]
+            state_label = labeld_state_map[point]
             state_name = label_to_state_dict[state_label]
             self.state_dict[id] = State(state_name, point, self.ps)
 
@@ -250,12 +278,12 @@ class StateCalculator(object):
         def plot_state():
             self.states_ax.cla()
             self.states_fig.suptitle(
-                "State Number: %d. Current pos:%d Number of positions:%d. Total states: %d" % (self.cur_s,
+                "State Number: %d. Current pos:%d Number of positions:%d. Total state names: %d, Total_states:%d" % (self.cur_s,
                                                                                                self.cur_pos,
-                                                                                               state_list[
-                                                                                                   self.cur_s][
-                                                                                                   'counter'],
-                                                                                               len(state_list)))
+                                                                                               state_list[self.cur_s]['counter']+1,
+                                                                                               len(state_list),
+                                                                                               sum([state_list[i]['counter']+1 for i in range(len(state_list))]))
+            )
             self.states_to_plot[self.cur_s][self.cur_pos].visualize(self.states_ax)
             self.states_fig.canvas.draw()
             # plt.draw()
@@ -301,11 +329,10 @@ class StateCalculator(object):
 
         def plot_state():
             self.theta_ax.cla()
-            self.theta_fig.suptitle("X:{}, Y:{}, Theta: {}".format(*(self.ps.indexes_to_coords(self.load_ix,
-                                                                                               self.load_iy,
-                                                                                               self.load_itheta))))
+            ipoint = (self.load_ix, self.load_iy, self.load_itheta)
+            self.theta_fig.suptitle("State id:{}   X:{}, Y:{}, Theta: {}.".format(self.state_ids[ipoint],*(self.ps.indexes_to_coords(*ipoint))))
 
-            self.visualize_point((self.load_ix, self.load_iy, self.load_itheta), self.theta_ax)
+            self.visualize_point(ipoint, self.theta_ax)
             self.theta_fig.canvas.draw()
             # plt.draw()
 

@@ -86,16 +86,6 @@ class Maze(object):
 
 
 
-
-def get_slit_board(slit_size):
-    board_height=15
-    x_edge = 17.6
-    slit_low = (board_height - slit_size)/2
-    slit_high = slit_low + slit_size
-    x_edge_far = x_edge + (slit_size) / 12.2
-    return [(x_edge_far,0), (x_edge_far,slit_low), (x_edge,slit_low), (x_edge,0), (0,0), (0,board_height), (x_edge,board_height),
-              (x_edge,slit_high), (x_edge_far, slit_high), (x_edge_far, board_height)]
-
 def change_shape_ratio(shape, r):
     return [(x*r,y*r) for (x,y) in shape]
 
@@ -105,6 +95,16 @@ SLIT_M_SIZE = 1.224
 SLIT_L_SIZE = 2.448
 SLIT_SL_SIZE = 3.66
 SLIT_XL_SIZE = 4.896
+
+BOARD_SLIT_HIEGHT = 15
+BOARD_SLIT_WIDTH = 17.6
+
+def get_slit_board(slit_size):
+    slit_low = (BOARD_SLIT_HIEGHT - slit_size)/2
+    slit_high = slit_low + slit_size
+    x_edge_far = BOARD_SLIT_WIDTH + (slit_size) / 12.2
+    return [(x_edge_far,0), (x_edge_far,slit_low), (BOARD_SLIT_WIDTH,slit_low), (BOARD_SLIT_WIDTH,0), (0,0), (0,BOARD_SLIT_HIEGHT), (BOARD_SLIT_WIDTH,BOARD_SLIT_HIEGHT),
+              (BOARD_SLIT_WIDTH,slit_high), (x_edge_far, slit_high), (x_edge_far, BOARD_SLIT_HIEGHT)]
 
 BOARD_SLIT_L = get_slit_board(SLIT_L_SIZE)
 BOARD_SLIT_XL = get_slit_board(SLIT_XL_SIZE)
