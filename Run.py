@@ -40,30 +40,30 @@ ps.load_space(ps.name + ".pkl")
 sc = StateCalculator.StateCalculator(ps)
 sc.load(ps.name + "_states.pkl")
 sc.calculate_states(recalculate_volume=True)
-# sc.save(ps.name + "_states.pkl")
+sc.save(ps.name + "_states.pkl")
 
-sm = StateMachine.StateMachine(sc.state_ids, sc.state_dict, ps)
-sm.calculate_state_machine()
+# sm = StateMachine.StateMachine(sc.state_ids, sc.state_dict, ps)
+# sm.calculate_state_machine()
 # sm.visualize()
 
-ps.visualize_space()
+# ps.visualize_space()
 sc.plot_state_map()
-sc.plot_interactive_states()
+# sc.plot_interactive_states()
+#
+# tr = {}
+# traj_paths = glob.glob("Trajectories\{}*.mat".format(CURRENT_MAZE))
+# for i, t in enumerate(traj_paths):
+#     tr[t] = MazeTrajectory.MazeTrajectory(sc.state_ids, ps, sc.state_dict, t,
+#                                           coords_bias=mazes[CURRENT_MAZE]["bias"],
+#                                           coords_factor=mazes[CURRENT_MAZE]["factor"],
+#                                           dual_traj_transform=maze_T_dual_trajectory_transform)
+    # ps.plot_trajectory(tr[t].traj, color=(0, 0, 1.0 / (i+1)))
 
-tr = {}
-traj_paths = glob.glob("Trajectories\{}*.mat".format(CURRENT_MAZE))
-for i, t in enumerate(traj_paths):
-    tr[t] = MazeTrajectory.MazeTrajectory(sc.state_ids, ps, sc.state_dict, t,
-                                          coords_bias=mazes[CURRENT_MAZE]["bias"],
-                                          coords_factor=mazes[CURRENT_MAZE]["factor"],
-                                          dual_traj_transform=maze_T_dual_trajectory_transform)
-    ps.plot_trajectory(tr[t].traj, color=(0, 0, 1.0 / (i+1)))
+# sm.load_trajectories(tr.values())
+# ends_map = get_T_end_map(ps)
+# sm.set_end_states(ends_map)
 
-sm.load_trajectories(tr.values())
-ends_map = get_T_end_map(ps)
-sm.set_end_states(ends_map)
-
-tr[traj_paths[i]].animate(delay=50, initial_frame=0, skip_rate=15)
+# tr[traj_paths[i]].animate(delay=50, initial_frame=0, skip_rate=15)
 
 
 

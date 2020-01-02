@@ -2,7 +2,6 @@ import itertools
 import pickle
 import numpy as np
 from shapely import geometry
-import binascii
 from matplotlib import pyplot as plt
 from matplotlib.widgets import TextBox, Slider
 from tqdm import tqdm
@@ -10,21 +9,31 @@ from scipy.ndimage.morphology import distance_transform_edt
 from scipy.ndimage import binary_dilation
 import cc3d
 
+VOLUME_TAG = 'V'
 
 def _deserialize_corners(s):
+    if s.startswith(VOLUME_TAG):
+        s = s[len(VOLUME_TAG):]
     if type(s) is not str:
         print(s)
-    l = s.find('l')
-    board = [x for x in binascii.unhexlify(s[1:l])]
-    load = [x for x in binascii.unhexlify(s[l + 1:])]
-    return {'load': set(load),
-            'board': set(board)}
+    bp = s.find('bp')
+    bl = s.find('bl')
+    lp = s.find('lp')
+    ll = s.find('ll')
+    return {'board': {
+                'points': set([int(x) for x in s[bp+2:bl].split("-")]),
+                'lines': set([tuple(int(y) for y in x.split(',')) for x in s[bl+2:lp].split("-")])},
+            'load': {
+            'points': set([int(x) for x in s[lp+2:ll].split("-")]),
+            'lines': set([tuple(int(y) for y in x.split(',')) for x in s[ll+2:].split("-")])},
+    }
 
 
-def _serialize_corners(corners):
-    ## TODO: consider give notice also to the order of the corners (if it is important which corner to connected to
-    return "{}{}{}{}".format("b", "".join(["{:02x}".format(i) for i in corners['board']]),
-                             'l', "".join(["{:02x}".format(i) for i in corners['load']]))
+def _serialize_state(state_dict):
+    return "{}{}{}{}{}{}{}{}".format("bp", "-".join(["{:02d}".format(i) for i in state_dict['board']['points']]),
+                                     "bl", "-".join(["{:02d},{:02d}".format(i, j) for (i, j) in state_dict['board']['lines']]),
+                                     'lp', "-".join(["{:02d}".format(i) for i in state_dict['load']['points']]),
+                                     "ll", "-".join(["{:02d},{:02d}".format(i, j) for (i, j) in state_dict['load']['lines']]))
 
 
 class State(object):
@@ -34,6 +43,9 @@ class State(object):
         self.name = name
         self.index = -1
         self.ps = phase_space
+        self.is_volume = False
+        if self.name.startswith(VOLUME_TAG):
+            self.is_volume=True
         for s in self.__class__.states_list:
             if s['states'][0].name == name:
                 s['counter'] += 1
@@ -71,10 +83,11 @@ class StateCalculator(object):
     # that still counts as touching. Here taking diagonal factor
     ERROR_DISTANCE_FACTOR = 1  # 1.2 * pow(2, 0.5)
 
-    def __init__(self, phase_space, max_volume_dist=8):
+    def __init__(self, phase_space, max_volume_dist=2):
         self.ps = phase_space
         self.touch_err_distance = self.ps.pos_resolution * self.ERROR_DISTANCE_FACTOR
-        self._states_names = None
+        self._boundary_states_names = None
+        self._total_states_names = None
         self.states = None
         self.max_volume_dist = max_volume_dist
         self.state_ids = None
@@ -84,11 +97,12 @@ class StateCalculator(object):
         # Compute all boundary points in the phase Space
         if self.ps.space_boundary is None:
             self.ps.calculate_boundary()
-        if self._states_names is None:
-            self._states_names = np.zeros(self.ps.space_boundary.shape, object)
+        if self._boundary_states_names is None:
+            self._boundary_states_names = np.zeros(self.ps.space_boundary.shape, object)
             self._name_boundary_points()
         if self.states is None or recalculate_volume:
             self.states = np.zeros(self.ps.space_boundary.shape, type(State))
+            self._total_states_names = np.zeros(self.ps.space_boundary.shape, object)
             self._append_volume_to_states()
             self._group_to_states_by_connectivity()
 
@@ -98,7 +112,7 @@ class StateCalculator(object):
         x, y, theta = self.ps.indexes_to_coords(ix, iy, itheta)
         load.translate(x, y)
         load.rotate(theta)
-        corners = {'board': set(), 'load': set()}
+        corners = {'board': {'lines': set(), 'points': set()}, 'load': {'lines': set(), 'points': set()}}
         for s1_name, s2_name in itertools.permutations(['board', 'load']):
             s1, s2 = shape_dict[s1_name], shape_dict[s2_name]
             for i2, line in enumerate(s2.iterate_lines()):
@@ -123,14 +137,14 @@ class StateCalculator(object):
                                 point.distance(geometry.Point(l2)) == d_line:
                                     continue
                             # another edge case to handle
-                        corners[s2_name].update([i2, i2 + 1])
-                        corners[s1_name].add(i1)
+                        corners[s2_name]['lines'].add((i2, i2 + 1))
+                        corners[s1_name]['points'].add(i1)
 
         if len(corners['load']) == 0:
             # print "Error: no corners for: {},{},{}".format(x, y, theta)
             pass
         else:
-            self._states_names[ix, iy, itheta] = _serialize_corners(corners)
+            self._boundary_states_names[ix, iy, itheta] = _serialize_state(corners)
 
     def _name_boundary_points(self):
         # Name all corners of each load and board
@@ -142,10 +156,10 @@ class StateCalculator(object):
                     progress_bar.update(1)
 
     def save(self, path='ps_states.pkl'):
-        pickle.dump((self._states_names, self.states, self.state_ids, self.state_dict), open(path, 'wb'))
+        pickle.dump((self._boundary_states_names, self._total_states_names, self.states, self.state_ids, self.state_dict), open(path, 'wb'))
 
     def load(self, path='ps_states.pkl'):
-        (self._states_names, self.states, self.state_ids, self.state_dict) = pickle.load(open(path, 'rb'))
+        (self._boundary_states_names, self._total_states_names, self.states, self.state_ids, self.state_dict) = pickle.load(open(path, 'rb'))
 
     def _fix_to_permissive_connectivity(self, labeld_state_map, cc_outoput, permissivness=4):
         new_id = 0
@@ -173,12 +187,12 @@ class StateCalculator(object):
 
     def _group_to_states_by_connectivity(self):
         # Prepare to cc3d format
-        state_names = np.unique(self._states_names[self._states_names.nonzero()])
+        state_names = np.unique(self._total_states_names[self._total_states_names.nonzero()])
         state_to_label_dict = {v: i for i, v in enumerate(state_names)}
         state_to_label_dict[0] = 10000
-        labeld_state_map = np.zeros(self._states_names.shape, dtype=np.int32)
+        labeld_state_map = np.zeros(self._total_states_names.shape, dtype=np.int32)
         for ix, iy, itheta in self.ps.iterate_space_index():
-            labeld_state_map[ix, iy, itheta] = state_to_label_dict[self._states_names[ix, iy, itheta]]
+            labeld_state_map[ix, iy, itheta] = state_to_label_dict[self._total_states_names[ix, iy, itheta]]
         self.state_ids = cc3d.connected_components(labeld_state_map, connectivity=26)
         label_to_state_dict = {i: v for i, v in enumerate(state_names)}
         label_to_state_dict[10000] = "Illegal"
@@ -201,22 +215,23 @@ class StateCalculator(object):
 
         # update the state array
         for ix, iy, itheta in self.ps.iterate_space_index():
-            if self._states_names[ix, iy, itheta]:
+            if self._boundary_states_names[ix, iy, itheta]:
                 self.states[ix, iy, itheta] = self.state_dict[self.state_ids[ix, iy, itheta]]
 
     def _append_volume_to_states(self):
         neutral_state_name = "neutral"
         print("StatesCalculator: calculating volume states")
-        for itheta in tqdm(range(self._states_names.shape[2])):
+        vol_matrix = np.ones(self._boundary_states_names.shape[0:2], object) * "V"
+        for itheta in tqdm(range(self._boundary_states_names.shape[2])):
             # init with the maximum distance possible
-            dist_map = np.ones(self._states_names.shape[0:2]) * max(self._states_names.shape[0:1]) * 2
+            dist_map = np.ones(self._boundary_states_names.shape[0:2]) * max(self._boundary_states_names.shape[0:1]) * 2
             state_map = np.zeros(dist_map.shape, type(State))
-            for state in np.unique(self._states_names[:, :, itheta][self._states_names[:, :, itheta].nonzero()]):
+            for state in np.unique(self._boundary_states_names[:, :, itheta][self._boundary_states_names[:, :, itheta].nonzero()]):
                 # calculate distance matrix for specific theta. boundaries are not taken care
                 # since for every volume point the closest boundary distant will be in smaller
                 # than any distance which crosses the allowed space boundary
                 # set 0 for dist source in cc3d
-                state_dist_map = np.where(self._states_names[:, :, itheta] == state, 0, 1)
+                state_dist_map = np.where(self._boundary_states_names[:, :, itheta] == state, 0, 1)
                 state_dist_map = distance_transform_edt(state_dist_map)
                 state_map = np.where(np.logical_and(dist_map > state_dist_map,
                                                     state_dist_map > 0),
@@ -224,16 +239,18 @@ class StateCalculator(object):
                 dist_map = np.where(np.logical_and(dist_map > state_dist_map,
                                                    state_dist_map > 0),
                                     state_dist_map, dist_map)
-            # neutral state
-            self._states_names[:, :, itheta] = np.where(np.logical_and(np.logical_and(self._states_names[:, :, itheta] == 0,
-                                                                       self.ps.space[:, :, itheta] == 1),dist_map > self.max_volume_dist),
-                                                        neutral_state_name, self._states_names[:, :, itheta])
-
 
             # update states array
-            self._states_names[:, :, itheta] = np.where(np.logical_and(self._states_names[:, :, itheta] == 0,
-                                                                       self.ps.space[:, :, itheta] == 1),
-                                                        state_map, self._states_names[:, :, itheta])
+            self._total_states_names[:, :, itheta] = np.where(self.ps.space[:, :, itheta] == 1,
+                                                              state_map, self._total_states_names[:, :, itheta])
+            self._total_states_names[:, :, itheta] = np.where(self._boundary_states_names[:, :, itheta] == 1,
+                                                              self._boundary_states_names[:,:,itheta], self._total_states_names[:, :, itheta])
+
+
+            # neutral state
+            self._total_states_names[:, :, itheta] = np.where(np.logical_and(np.logical_and(self._boundary_states_names[:, :, itheta] == 0,
+                                                                       self._total_states_names[:, :, itheta] != 0), dist_map > self.max_volume_dist),
+                                                               + self._total_states_names[:, :, itheta], self._total_states_names[:, :, itheta])
 
 
     def visualize_point(self, ipoint, ax=None):
@@ -245,14 +262,20 @@ class StateCalculator(object):
         self.ps.maze.load.rotate(point[2])
         self.ps.maze.visualize(ax=ax)
         state = self.states[ipoint]
-        if state and type(state.name) is str and state.name.startswith('b'):
-            corners = _deserialize_corners(state.name)
-            for c in corners['load']:
+        if state and type(state.name) is str and len(state.name) > 1:
+            shapes = _deserialize_corners(state.name)
+            for c in shapes['load']['points']:
                 coords = self.ps.maze.load.shape.coords[c]
                 ax.plot(coords[0], coords[1], 'go', markersize=8)
-            for c in corners['board']:
+            for c in shapes['load']['lines']:
+                coords = self.ps.maze.load.shape.coords[c]
+                ax.plot(coords[0], coords[1], 'g', markersize=6)
+            for c in shapes['board']['points']:
                 coords = self.ps.maze.board.shape.coords[c]
                 ax.plot(coords[0], coords[1], 'ko', markersize=8)
+            for c in shapes['load']['lines']:
+                coords = self.ps.maze.load.shape.coords[c]
+                ax.plot(coords[0], coords[1], 'k', markersize=6)
         palette = plt.get_cmap("gist_ncar")
         palette.set_bad(alpha=0.0)
         img = np.swapaxes(self.state_ids[:, :, ipoint[2]], 0, 1)
