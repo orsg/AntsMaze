@@ -10,30 +10,38 @@ from scipy.ndimage import binary_dilation
 import cc3d
 
 VOLUME_TAG = 'V'
+EMPTY_STATE_LEN = len('bpo') * 4
 
 def _deserialize_corners(s):
     if s.startswith(VOLUME_TAG):
         s = s[len(VOLUME_TAG):]
-    if type(s) is not str:
-        print(s)
-    bp = s.find('bp')
-    bl = s.find('bl')
-    lp = s.find('lp')
-    ll = s.find('ll')
+    elif s == "Illegal":
+        return {'board':{'points':set(), 'lines':set()}, 'load': {'points':set(), 'lines':set()}}
+    bp = s.find('bpo')
+    bl = s.find('bli')
+    lp = s.find('lpo')
+    ll = s.find('lli')
     return {'board': {
-                'points': set([int(x) for x in s[bp+2:bl].split("-")]),
-                'lines': set([tuple(int(y) for y in x.split(',')) for x in s[bl+2:lp].split("-")])},
+                'points': set([int(x) for x in s[bp+3:bl].split("-") if len(x) > 0]),
+                'lines': set([tuple(int(y) for y in x.split(',')) for x in s[bl+3:lp].split("-") if len(x) > 0])},
             'load': {
-            'points': set([int(x) for x in s[lp+2:ll].split("-")]),
-            'lines': set([tuple(int(y) for y in x.split(',')) for x in s[ll+2:].split("-")])},
+            'points': set([int(x) for x in s[lp+3:ll].split("-") if len(x) > 0]),
+            'lines': set([tuple(int(y) for y in x.split(',')) for x in s[ll+3:].split("-") if len(x) > 0])},
     }
 
 
-def _serialize_state(state_dict):
-    return "{}{}{}{}{}{}{}{}".format("bp", "-".join(["{:02d}".format(i) for i in state_dict['board']['points']]),
-                                     "bl", "-".join(["{:02d},{:02d}".format(i, j) for (i, j) in state_dict['board']['lines']]),
-                                     'lp', "-".join(["{:02d}".format(i) for i in state_dict['load']['points']]),
-                                     "ll", "-".join(["{:02d},{:02d}".format(i, j) for (i, j) in state_dict['load']['lines']]))
+def _serialize_state(state_dict, board_dual_points):
+    # used to gather close points into one point
+    for dual_points in board_dual_points:
+        if dual_points in state_dict["board"]["lines"]:
+            state_dict["board"]["lines"].remove(dual_points)
+            state_dict["board"]["points"].update(dual_points)
+        if dual_points[0] in state_dict["board"]["points"] or dual_points[1] in state_dict["board"]["points"]:
+            state_dict["board"]["points"].update(dual_points)
+    return "{}{}{}{}{}{}{}{}".format("bpo", "-".join(["{:02d}".format(i) for i in state_dict['board']['points']]),
+                                     "bli", "-".join(["{:02d},{:02d}".format(i, j) for (i, j) in state_dict['board']['lines']]),
+                                     'lpo', "-".join(["{:02d}".format(i) for i in state_dict['load']['points']]),
+                                     "lli", "-".join(["{:02d},{:02d}".format(i, j) for (i, j) in state_dict['load']['lines']]))
 
 
 class State(object):
@@ -58,6 +66,21 @@ class State(object):
                                                'states': [self]})
         self.rep_point = rep_point
 
+    def display_markers(self, ax):
+        shapes = _deserialize_corners(self.name)
+        for c in shapes['load']['points']:
+            coords = self.ps.maze.load.shape.coords[c]
+            ax.plot(coords[0], coords[1], 'go', markersize=8)
+        for c1, c2 in shapes['load']['lines']:
+            coords = np.array(self.ps.maze.load.shape.coords[c1:c1 + 2]).T
+            ax.plot(coords[0], coords[1], 'r', markersize=6)
+        for c in shapes['board']['points']:
+            coords = self.ps.maze.board.shape.coords[c]
+            ax.plot(coords[0], coords[1], 'go', markersize=8)
+        for c1, c2 in shapes['board']['lines']:
+            coords = np.array(self.ps.maze.board.shape.coords[c1:c1 + 2]).T
+            ax.plot(coords[0], coords[1], 'r', markersize=6)
+
     def visualize(self, ax=None, point=None):
         if ax is None:
             ax = plt.subplot()
@@ -67,13 +90,7 @@ class State(object):
         self.ps.maze.load.rotate(point[2])
         self.ps.maze.visualize(ax=ax)
         if type(self.name) is str and self.name.startswith('b'):
-            corners = _deserialize_corners(self.name)
-            for c in corners['load']:
-                coords = self.ps.maze.load.shape.coords[c]
-                ax.plot(coords[0], coords[1], 'go', markersize=8)
-            for c in corners['board']:
-                coords = self.ps.maze.board.shape.coords[c]
-                ax.plot(coords[0], coords[1], 'ko', markersize=8)
+            self.display_markers(ax)
         ax.set_xlim((self.ps.shape['x'][0] - 5, self.ps.shape['x'][1] + 5))
         ax.set_ylim((self.ps.shape['y'][0] - 5, self.ps.shape['y'][1] + 5))
         plt.draw()
@@ -83,7 +100,7 @@ class StateCalculator(object):
     # that still counts as touching. Here taking diagonal factor
     ERROR_DISTANCE_FACTOR = 1  # 1.2 * pow(2, 0.5)
 
-    def __init__(self, phase_space, max_volume_dist=2):
+    def __init__(self, phase_space, max_volume_dist=1.5, board_dual_points=[]):
         self.ps = phase_space
         self.touch_err_distance = self.ps.pos_resolution * self.ERROR_DISTANCE_FACTOR
         self._boundary_states_names = None
@@ -92,6 +109,7 @@ class StateCalculator(object):
         self.max_volume_dist = max_volume_dist
         self.state_ids = None
         self.state_dict = None
+        self._board_dual_points = board_dual_points
 
     def calculate_states(self, recalculate_volume=False):
         # Compute all boundary points in the phase Space
@@ -137,14 +155,16 @@ class StateCalculator(object):
                                 point.distance(geometry.Point(l2)) == d_line:
                                     continue
                             # another edge case to handle
+                        if s2_name == 'board' and (i2,i2+1) in self._board_dual_points:
+                            continue
                         corners[s2_name]['lines'].add((i2, i2 + 1))
                         corners[s1_name]['points'].add(i1)
-
-        if len(corners['load']) == 0:
+        state_name = _serialize_state(corners, self._board_dual_points)
+        if len(state_name) <= EMPTY_STATE_LEN:
             # print "Error: no corners for: {},{},{}".format(x, y, theta)
             pass
         else:
-            self._boundary_states_names[ix, iy, itheta] = _serialize_state(corners)
+            self._boundary_states_names[ix, iy, itheta] = state_name
 
     def _name_boundary_points(self):
         # Name all corners of each load and board
@@ -215,16 +235,15 @@ class StateCalculator(object):
 
         # update the state array
         for ix, iy, itheta in self.ps.iterate_space_index():
-            if self._boundary_states_names[ix, iy, itheta]:
+            if self._total_states_names[ix, iy, itheta]:
                 self.states[ix, iy, itheta] = self.state_dict[self.state_ids[ix, iy, itheta]]
 
     def _append_volume_to_states(self):
         neutral_state_name = "neutral"
         print("StatesCalculator: calculating volume states")
-        vol_matrix = np.ones(self._boundary_states_names.shape[0:2], object) * "V"
         for itheta in tqdm(range(self._boundary_states_names.shape[2])):
             # init with the maximum distance possible
-            dist_map = np.ones(self._boundary_states_names.shape[0:2]) * max(self._boundary_states_names.shape[0:1]) * 2
+            dist_map = np.ones(self._boundary_states_names.shape[0:2]) * max(self._boundary_states_names.shape[0:2]) * 100
             state_map = np.zeros(dist_map.shape, type(State))
             for state in np.unique(self._boundary_states_names[:, :, itheta][self._boundary_states_names[:, :, itheta].nonzero()]):
                 # calculate distance matrix for specific theta. boundaries are not taken care
@@ -243,14 +262,12 @@ class StateCalculator(object):
             # update states array
             self._total_states_names[:, :, itheta] = np.where(self.ps.space[:, :, itheta] == 1,
                                                               state_map, self._total_states_names[:, :, itheta])
-            self._total_states_names[:, :, itheta] = np.where(self._boundary_states_names[:, :, itheta] == 1,
+            self._total_states_names[:, :, itheta] = np.where(self._boundary_states_names[:, :, itheta] != 0,
                                                               self._boundary_states_names[:,:,itheta], self._total_states_names[:, :, itheta])
-
-
             # neutral state
             self._total_states_names[:, :, itheta] = np.where(np.logical_and(np.logical_and(self._boundary_states_names[:, :, itheta] == 0,
                                                                        self._total_states_names[:, :, itheta] != 0), dist_map > self.max_volume_dist),
-                                                               + self._total_states_names[:, :, itheta], self._total_states_names[:, :, itheta])
+                                                               VOLUME_TAG + self._total_states_names[:, :, itheta].astype(str).astype(object), self._total_states_names[:, :, itheta])
 
 
     def visualize_point(self, ipoint, ax=None):
@@ -263,19 +280,7 @@ class StateCalculator(object):
         self.ps.maze.visualize(ax=ax)
         state = self.states[ipoint]
         if state and type(state.name) is str and len(state.name) > 1:
-            shapes = _deserialize_corners(state.name)
-            for c in shapes['load']['points']:
-                coords = self.ps.maze.load.shape.coords[c]
-                ax.plot(coords[0], coords[1], 'go', markersize=8)
-            for c in shapes['load']['lines']:
-                coords = self.ps.maze.load.shape.coords[c]
-                ax.plot(coords[0], coords[1], 'g', markersize=6)
-            for c in shapes['board']['points']:
-                coords = self.ps.maze.board.shape.coords[c]
-                ax.plot(coords[0], coords[1], 'ko', markersize=8)
-            for c in shapes['load']['lines']:
-                coords = self.ps.maze.load.shape.coords[c]
-                ax.plot(coords[0], coords[1], 'k', markersize=6)
+            state.display_markers(ax)
         palette = plt.get_cmap("gist_ncar")
         palette.set_bad(alpha=0.0)
         img = np.swapaxes(self.state_ids[:, :, ipoint[2]], 0, 1)

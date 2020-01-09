@@ -5,10 +5,12 @@ import matplotlib.pyplot as plt
 
 mazes = {'XLT': {"name":Mazes.MAZE_T_XL,
                  "bias": (-0.05,0.25,-90),
-                 "factor": (1,1,-1)},
+                 "factor": (1,1,-1),
+                 'dual_points': [(1,2), (7,8)]},
         'SLT': {"name":Mazes.MAZE_T_SL,
                  "bias": (0,0,90),
-                 "factor": (1,1,1)},
+                 "factor": (1,1,1),
+                 'dual_points': [(1,2), (7,8)]},
                 }
 CURRENT_MAZE = 'XLT'
 # CURRENT_MAZE = 'SLT'
@@ -37,8 +39,8 @@ ps.load_space(ps.name + ".pkl")
 # ps.calculate_boundary()
 # ps.save_space(ps.name+".pkl")
 
-sc = StateCalculator.StateCalculator(ps)
-sc.load(ps.name + "_states.pkl")
+sc = StateCalculator.StateCalculator(ps, board_dual_points=mazes[CURRENT_MAZE]["dual_points"])
+# sc.load(ps.name + "_states.pkl")
 sc.calculate_states(recalculate_volume=True)
 sc.save(ps.name + "_states.pkl")
 
@@ -48,7 +50,7 @@ sc.save(ps.name + "_states.pkl")
 
 # ps.visualize_space()
 sc.plot_state_map()
-# sc.plot_interactive_states()
+sc.plot_interactive_states()
 #
 # tr = {}
 # traj_paths = glob.glob("Trajectories\{}*.mat".format(CURRENT_MAZE))
