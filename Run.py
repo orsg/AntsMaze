@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import pickle
+import seaborn as sns
 
 mazes = {'XLT': {"name":Mazes.MAZE_T_XL,
                  "bias": (0,0,90),
@@ -70,13 +71,18 @@ def analyze_maze(maze_name, data_dir='saved_data', data_exist=False, plot=False)
         # ps.plot_trajectory(tr[t].traj, color=(0, 0, 1.0 / (i+1)))
 
     df = pd.DataFrame(distances)
+    df['board']=maze_name
+    df['scale']=ps.maze.load.centroid_max_dist/Mazes.MAZE_T_XL.load.centroid_max_dist
+    df['rot']=df['rot']/df['scale']
+    df['tot']=df['rot']+df['cm']
+    df['cm']=df['cm']/df['scale']
     pickle.dump(df, open(os.path.join(data_dir, maze_name + "results.pkl"), 'wb'))
     # sm.visualize()
     if plot:
         ps.visualize_space()
         sc.plot_state_map()
         sc.plot_interactive_states()
-    return df
+    return (df, ps, sc, tr)
     # tr[traj_paths[i]].animate(delay=50, initial_frame=0, skip_rate=15)
 
     # sm = StateMachine.StateMachine(sc.state_ids, sc.state_dict, ps)
@@ -84,15 +90,22 @@ def analyze_maze(maze_name, data_dir='saved_data', data_exist=False, plot=False)
     # sm.load_trajectories(tr.values())
     # sm.set_end_states(ends_map)
 
-
-
 dfs=[]
+results={}
 for m in mazes:
     print("Analayzing: {}".format(m))
-    dfs[m] = analyze_maze(m, data_exist=True)
+    df, ps, sc, tr = analyze_maze(m, data_exist=True)
+    results[m]={'ps':ps, 'sc':sc, 'tr':tr}
+    dfs.append(df)
+df = pd.concat(dfs)
+df = df[df.cm!=np.inf]
+print(df.groupby('board').count())
+print(df.groupby('board').mean())
+print(df.groupby('board').var())
 
-
-
+for measure in ['cm', 'states_dist', 'rot', 'tot']:
+    plt.figure()
+    sns.barplot('board', measure, data=df)
 
 input("tap to finish")
 

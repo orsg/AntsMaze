@@ -4,7 +4,7 @@ from Mazes import *
 import itertools
 import pickle
 from scipy.io import loadmat
-from mayavi import mlab
+# from mayavi import mlab
 from tqdm import tqdm
 
 
