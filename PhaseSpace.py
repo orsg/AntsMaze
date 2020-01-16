@@ -41,6 +41,10 @@ class PhaseSpace(object):
     def theta_cell_normalization(self):
         return (np.pi * self.maze.load.centroid_max_dist * self.theta_resolution) / (180 * self.pos_resolution)
 
+    @property
+    def theta_distance_factor(self):
+        return (np.pi * self.maze.load.centroid_max_dist) / 180
+
     def _initialize_maze_edges(self):
         """
         set x&y edges to 0 in order to define the maze boundaries (helps the visualization)

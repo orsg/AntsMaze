@@ -113,6 +113,9 @@ class StateMachine(object):
             for edge in edges:
                 self.graph.edges[edge[0], edge[1]]['traj_normed'] = edge[2] / sum_edges
 
+    #
+    # def _calculate_end_state_map(self):
+    #     skfmm.distance()
 
     def set_end_states(self, end_states_map):
         illegal = 1000000

@@ -12,9 +12,11 @@ import cc3d
 VOLUME_TAG = 'V'
 EMPTY_STATE_LEN = len('bpo') * 4
 
-def _deserialize_corners(s):
+def _deserialize_state(s):
+    is_volume = False
     if s.startswith(VOLUME_TAG):
         s = s[len(VOLUME_TAG):]
+        is_volume=True
     elif s == "Illegal":
         return {'board':{'points':set(), 'lines':set()}, 'load': {'points':set(), 'lines':set()}}
     bp = s.find('bpo')
@@ -25,12 +27,13 @@ def _deserialize_corners(s):
                 'points': set([int(x) for x in s[bp+3:bl].split("-") if len(x) > 0]),
                 'lines': set([tuple(int(y) for y in x.split(',')) for x in s[bl+3:lp].split("-") if len(x) > 0])},
             'load': {
-            'points': set([int(x) for x in s[lp+3:ll].split("-") if len(x) > 0]),
-            'lines': set([tuple(int(y) for y in x.split(',')) for x in s[ll+3:].split("-") if len(x) > 0])},
+                'points': set([int(x) for x in s[lp+3:ll].split("-") if len(x) > 0]),
+                'lines': set([tuple(int(y) for y in x.split(',')) for x in s[ll+3:].split("-") if len(x) > 0])},
+            'is_volume': is_volume,
     }
 
 
-def _serialize_state(state_dict, board_dual_points):
+def serialize_state(state_dict, board_dual_points):
     # used to gather close points into one point
     for dual_points in board_dual_points:
         if dual_points in state_dict["board"]["lines"]:
@@ -66,8 +69,12 @@ class State(object):
                                                'states': [self]})
         self.rep_point = rep_point
 
+    @property
+    def edges(self):
+        return _deserialize_state(self.name)
+
     def display_markers(self, ax):
-        shapes = _deserialize_corners(self.name)
+        shapes = self.edges
         for c in shapes['load']['points']:
             coords = self.ps.maze.load.shape.coords[c]
             ax.plot(coords[0], coords[1], 'go', markersize=8)
@@ -159,7 +166,7 @@ class StateCalculator(object):
                             continue
                         corners[s2_name]['lines'].add((i2, i2 + 1))
                         corners[s1_name]['points'].add(i1)
-        state_name = _serialize_state(corners, self._board_dual_points)
+        state_name = serialize_state(corners, self._board_dual_points)
         if len(state_name) <= EMPTY_STATE_LEN:
             # print "Error: no corners for: {},{},{}".format(x, y, theta)
             pass
@@ -301,7 +308,7 @@ class StateCalculator(object):
         self.cur_pos = 0
         if state_list is None:
             state_list = State.states_list
-        self.states_to_plot = [s['states'] for s in state_list]
+        self.states_to_plot = [s['states'] for s in state_list if not s['states'][0].name.startswith(VOLUME_TAG)]
 
         def plot_state():
             self.states_ax.cla()
