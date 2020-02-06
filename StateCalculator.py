@@ -365,7 +365,8 @@ class StateCalculator(object):
         def plot_state():
             self.theta_ax.cla()
             ipoint = (self.load_ix, self.load_iy, self.load_itheta)
-            self.theta_fig.suptitle("State id:{}   X:{}, Y:{}, Theta: {}.".format(self.state_ids[ipoint],*(self.ps.indexes_to_coords(*ipoint))))
+            self.theta_fig.suptitle("State id:{}   X:{}, Y:{}, Theta: {}.".format(self.state_ids[ipoint],
+                                                                                  *(self.ps.indexes_to_coords(*ipoint))))
 
             self.visualize_point(ipoint, self.theta_ax)
             self.theta_fig.canvas.draw()

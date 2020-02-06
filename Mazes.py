@@ -131,7 +131,6 @@ LOAD_T_SL = change_shape_ratio(LOAD_T_L, (SLIT_SL_SIZE / SLIT_L_SIZE))
 LOAD_T_M = change_shape_ratio(LOAD_T_L, (SLIT_M_SIZE / SLIT_L_SIZE))
 LOAD_T_S = change_shape_ratio(LOAD_T_L, (SLIT_S_SIZE / SLIT_L_SIZE))
 
-
 LOAD_I_L = [(0, 0), (1.0, 0), (1.0, 2.8), (0, 2.8), (0, 0)]
 LOAD_ASYMMETRICAL_H_L = [(0, 0), (0.8, 0), (0.8, 2.22), (2.78, 2.22), (2.78, 1.22), (3.58, 1.22),
                          (3.58,5.24), (2.78,5.24), (2.78,3.02), (0.8,3.02), (0.8, 4.02), (0, 4.02), (0,0)]
@@ -140,6 +139,10 @@ LOAD_SPECIAL_L = [(0, 0), (0.8, 0), (0.8, 2.01), (8.83, 2.01), (8.83, 1.19), (9.
 LOAD_LONG_L = [(0, 0), (0.44, 0), (0.44, 0.99), (8.03, 0.99), (8.03, 1.43),
                (0.44,1.43), (0.44,2.42), (0,2.42), (0,0)]
 
+LOAD_H_XL = change_shape_ratio(LOAD_H_L, (SLIT_XL_SIZE / SLIT_L_SIZE))
+LOAD_ASYMMETRICAL_H_XL = change_shape_ratio(LOAD_ASYMMETRICAL_H_L, (SLIT_XL_SIZE / SLIT_L_SIZE))
+LOAD_I_XL = change_shape_ratio(LOAD_I_L, (SLIT_XL_SIZE / SLIT_L_SIZE))
+
 MAZE_T_S = Maze(BOARD_SLIT_S, LOAD_T_S, "Slit T - Small")
 MAZE_T_M = Maze(BOARD_SLIT_M, LOAD_T_M, "Slit T - Medium")
 MAZE_T_L = Maze(BOARD_SLIT_L, LOAD_T_L, "Slit T - Large")
@@ -147,6 +150,11 @@ MAZE_T_SL = Maze(BOARD_SLIT_SL, LOAD_T_SL, "Slit T - Sesqui-Large")
 MAZE_T_XL = Maze(BOARD_SLIT_XL, LOAD_T_XL, "Slit T - Extra-Large")
 MAZE_I_L = Maze(BOARD_SLIT_L, LOAD_I_L, "Slit I - Large")
 MAZE_H_L = Maze(BOARD_SLIT_L, LOAD_H_L, "Slit H - Large")
+MAZE_H_XL = Maze(BOARD_SLIT_XL, LOAD_H_XL, "Slit H - Extra Large")
+MAZE_I_XL = Maze(BOARD_SLIT_XL, LOAD_I_XL, "Slit I - Extra Large")
+MAZE_ASYMMETRICAL_H_XL = Maze(BOARD_SLIT_XL, LOAD_ASYMMETRICAL_H_XL, "Slit Assymetrical H - Extra Large")
+
+
 MAZE_LOAD_ASYMMETRICAL_H_L = Maze(BOARD_SLIT_L, LOAD_ASYMMETRICAL_H_L)
 #
 MAZE_SPECIAL = Maze(BOARD_SPECIAL_L, LOAD_SPECIAL_L)

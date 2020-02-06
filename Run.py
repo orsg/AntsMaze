@@ -64,7 +64,7 @@ def analyze_maze(maze_name, data_dir='saved_data', data_exist=False, plot=False)
                                                   coords_bias=mazes[maze_name]["bias"],
                                                   coords_factor=mazes[maze_name]["factor"],
                                                   dual_traj_transform=maze_T_dual_trajectory_transform)
-            distances.append({"name":t, 'cm':tr[t].cm_dist, 'rot':tr[t].rot_dist, 'state_dist': tr[t].states_dist})
+            distances.append({"name":t, 'cm':tr[t].cm_dist, 'rot':tr[t].rot_dist, 'states_dist': tr[t].states_dist})
         except:
             continue
         print(i)
@@ -73,9 +73,9 @@ def analyze_maze(maze_name, data_dir='saved_data', data_exist=False, plot=False)
     df = pd.DataFrame(distances)
     df['board']=maze_name
     df['scale']=ps.maze.load.centroid_max_dist/Mazes.MAZE_T_XL.load.centroid_max_dist
-    df['rot']=df['rot']/df['scale']
-    df['tot']=df['rot']+df['cm']
-    df['cm']=df['cm']/df['scale']
+    df['rotational_dist(scaled)']=df['rot']/df['scale']
+    df['centroid_dist(scaled)'] = df['cm'] / df['scale']
+    df['centroid+rotational_dist(scaled)']=df['rotational_dist(scaled)']+df['centroid_dist(scaled)']
     pickle.dump(df, open(os.path.join(data_dir, maze_name + "results.pkl"), 'wb'))
     # sm.visualize()
     if plot:
@@ -103,10 +103,33 @@ print(df.groupby('board').count())
 print(df.groupby('board').mean())
 print(df.groupby('board').var())
 
-for measure in ['cm', 'states_dist', 'rot', 'tot']:
+measures = ['centroid_dist(scaled)', 'rotational_dist(scaled)', 'centroid+rotational_dist(scaled)']
+df_melted = df[['board']+measures].melt(id_vars='board').rename(columns=str.title)
+plt.figure()
+sns.barplot("Variable", 'Value', hue="Board", data=df_melted)
+plt.figure()
+sns.barplot('board', "states_dist", data=df)
+plt.pause(0.1)
+
+for measure in measures:
     plt.figure()
     sns.barplot('board', measure, data=df)
 
+
+
+
+n = 15
+for m in mazes:
+    results[m]['ps'].maze.load.translate(5,5)
+    results[m]['ps'].maze.load.rotate(0)
+    results[m]['ps'].maze.visualize()
+    [l.plot_trajectory() for l in list(results[m]['tr'].values())[:n]]
 input("tap to finish")
 
 
+special = PhaseSpace.PhaseSpace(Mazes.MAZE_SPECIAL, 0.25, 3, (12,37), (0,20), name='Special')
+special.load_space("Special.pkl")
+ixl = PhaseSpace.PhaseSpace(Mazes.MAZE_I_XL, 0.25, 3, (12,23), (2,13), name='IXL')
+ixl.load_space("iXL_space.pkl")
+hxl = PhaseSpace.PhaseSpace(Mazes.MAZE_H_XL, 0.25, 3, (12,23), (2,13), name='HXL')
+hxl.load_space("HXL_space.pkl")
